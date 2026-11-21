@@ -313,6 +313,15 @@ function renderTable() {
     document.getElementById("s_" + c).textContent = sortCol === c ? (sortAsc ? "▲" : "▼") : "";
   });
 
+  const pairPnlMap = {};
+  rawRows.forEach(r => {
+    const pk = `${r.account}||${r.ticker}`;
+    if (!pairPnlMap[pk]) pairPnlMap[pk] = { L: null, S: null, count: 0 };
+    if (r.side === "LONG") pairPnlMap[pk].L = (pairPnlMap[pk].L || 0) + Number(r.pnl_usd || 0);
+    if (r.side === "SHORT") pairPnlMap[pk].S = (pairPnlMap[pk].S || 0) + Number(r.pnl_usd || 0);
+    pairPnlMap[pk].count++;
+  });
+
   let sumMar = 0, sumNot = 0, sumPnl = 0, nL = 0, nS = 0, nOk = 0, nBad = 0;
   rows.forEach(r => {
     sumMar += Number(r.margin_usd || 0);
@@ -336,6 +345,18 @@ function renderTable() {
     const mainVal = depMode === "margin" ? fmtUsd(r.margin_usd) : fmtUsd(r.notional_usd);
     const subVal = depMode === "margin" ? `объём ${fmtUsd(r.notional_usd)}` : `маржа ${fmtUsd(r.margin_usd)}`;
     const pnlCls = Number(r.pnl_usd) >= 0 ? "pos" : "neg";
+    const pk = `${r.account}||${r.ticker}`;
+    const pm = pairPnlMap[pk];
+    let pnlCellHtml = `<span class="${pnlCls}">${fmtUsd(r.pnl_usd, true)}</span>`;
+    if (pm && pm.L !== null && pm.S !== null) {
+      const tot = pm.L + pm.S;
+      const lCls = pm.L >= 0 ? "pos" : "neg";
+      const sCls = pm.S >= 0 ? "pos" : "neg";
+      const tCls = tot >= 0 ? "pos" : "neg";
+      pnlCellHtml = `<span class="${pnlCls}">${fmtUsd(r.pnl_usd, true)}</span>` +
+        `<span class="sub">L: <b class="${lCls}">${fmtUsd(pm.L, true)}</b> · S: <b class="${sCls}">${fmtUsd(pm.S, true)}</b></span>` +
+        `<span class="sub">Общий: <b class="${tCls}">${fmtUsd(tot, true)}</b></span>`;
+    }
     const spasHtml = r.spas_ok
       ? `<span class="spas-plus" title="${(r.spas_note || '').replace(/"/g, '&quot;')}">+</span><span class="sub">${r.spas_role || ""}</span>`
       : `<span class="spas-minus" title="${(r.spas_note || '').replace(/"/g, '&quot;')}">−</span><span class="sub" style="color:var(--red)">${r.spas_note || "нет защиты"}</span>`;
@@ -343,7 +364,7 @@ function renderTable() {
       <td><strong>${idx + 1}</strong> &nbsp;${sideBadge}${pairBadge}</td>
       <td><strong>${r.ticker}</strong><span class="sub">qty ${r.qty} · mark ${r.mark || "—"}</span></td>
       <td class="num"><strong>${mainVal}</strong><span class="sub">${subVal}</span></td>
-      <td class="num"><span class="${pnlCls}">${fmtUsd(r.pnl_usd, true)}</span></td>
+      <td class="num">${pnlCellHtml}</td>
       <td>${r.venue}</td>
       <td><strong>${r.account}</strong></td>
       <td class="center">${spasHtml}</td>
