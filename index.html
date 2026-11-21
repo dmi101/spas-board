@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex,nofollow">
+<title>СПАС · Живая таблица позиций</title>
+<style>
+  :root {
+    --bg: #0b0f17;
+    --panel: #131a26;
+    --panel2: #192233;
+    --border: #26334d;
+    --text: #e6edf7;
+    --muted: #8b9bb4;
+    --green: #22c55e;
+    --green-bg: rgba(34,197,94,0.14);
+    --red: #ef4444;
+    --red-bg: rgba(239,68,68,0.14);
+    --amber: #f59e0b;
+    --blue: #38bdf8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 14px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+  }
+  .wrap { max-width: 1360px; margin: 0 auto; }
+  .top {
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; margin-bottom: 12px;
+  }
+  .title { font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--green); box-shadow: 0 0 8px var(--green); display: inline-block; }
+  .dot.stale { background: var(--amber); box-shadow: 0 0 8px var(--amber); }
+  .meta { color: var(--muted); font-size: 12.5px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+  .cards {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); gap: 8px; margin-bottom: 12px;
+  }
+  .card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px;
+  }
+  .card .k { color: var(--muted); font-size: 11.5px; margin-bottom: 4px; }
+  .card .v { font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .controls {
+    display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px;
+  }
+  input[type="search"] {
+    background: var(--panel); border: 1px solid var(--border); color: var(--text);
+    padding: 8px 12px; border-radius: 8px; font-size: 13.5px; min-width: 210px; flex: 1;
+  }
+  .btn {
+    background: var(--panel); border: 1px solid var(--border); color: var(--text);
+    padding: 7px 12px; border-radius: 8px; font-size: 13px; cursor: pointer; user-select: none;
+  }
+  .btn.active { background: #1e3a5f; border-color: var(--blue); color: #fff; font-weight: 600; }
+  .btn:hover { border-color: var(--blue); }
+  .tbl-wrap {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 12px; overflow-x: auto;
+  }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  thead th {
+    position: sticky; top: 0; background: var(--panel2); color: var(--muted);
+    font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em;
+    padding: 11px 10px; text-align: left; border-bottom: 1px solid var(--border);
+    cursor: pointer; user-select: none; white-space: nowrap;
+  }
+  thead th:hover { color: #fff; }
+  thead th.num, td.num { text-align: right; }
+  thead th.center, td.center { text-align: center; }
+  tbody tr { border-bottom: 1px solid rgba(38,51,77,0.55); }
+  tbody tr:hover { background: rgba(56,189,248,0.06); }
+  td { padding: 9px 10px; white-space: nowrap; }
+  .badge {
+    display: inline-block; padding: 2px 7px; border-radius: 5px; font-size: 11.5px; font-weight: 700;
+  }
+  .b-long { background: var(--green-bg); color: var(--green); }
+  .b-short { background: var(--red-bg); color: var(--red); }
+  .b-pair { background: rgba(56,189,248,0.14); color: var(--blue); font-size: 10.5px; margin-left: 5px; font-weight: 600; }
+  .pos { color: var(--green); font-weight: 700; }
+  .neg { color: var(--red); font-weight: 700; }
+  .sub { color: var(--muted); font-size: 11.5px; display: block; margin-top: 1px; }
+  .spas-plus {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 28px; height: 26px; border-radius: 7px; background: var(--green-bg);
+    color: var(--green); font-size: 18px; font-weight: 800;
+  }
+  .spas-minus {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 28px; height: 26px; border-radius: 7px; background: var(--red-bg);
+    color: var(--red); font-size: 18px; font-weight: 800;
+  }
+  .err-box {
+    background: var(--red-bg); border: 1px solid var(--red); color: #fecaca;
+    padding: 14px; border-radius: 10px; margin-bottom: 12px; display: none;
+  }
+  @media (max-width: 720px) {
+    body { padding: 8px; font-size: 13px; }
+    td, thead th { padding: 8px 7px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div id="errBox" class="err-box"></div>
+  <div class="top">
+    <div class="title">
+      <span id="liveDot" class="dot"></span>
+      <span>СПАС · Позиции всех бирж</span>
+    </div>
+    <div class="meta">
+      <span id="snapTime">Загрузка слепка…</span>
+      <span id="nextRefresh">Автообновление: 60с</span>
+      <button class="btn" onclick="loadFeed(true)">↻ Обновить сейчас</button>
+    </div>
+  </div>
+
+  <div class="cards">
+    <div class="card"><div class="k">Строк (ног) всего</div><div class="v" id="cTotal">—</div></div>
+    <div class="card"><div class="k">LONG / SHORT</div><div class="v" id="cLS">—</div></div>
+    <div class="card"><div class="k">Сумма Депозита (маржа / объём)</div><div class="v" id="cDep">—</div></div>
+    <div class="card"><div class="k">Суммарный uPnL</div><div class="v" id="cPnl">—</div></div>
+    <div class="card"><div class="k">СПАС охраняет (+) / Внимание (−)</div><div class="v" id="cSpas">—</div></div>
+  </div>
+
+  <div class="controls">
+    <input type="search" id="qSearch" placeholder="Поиск: тикер, биржа, аккаунт…" oninput="renderTable()">
+    <button class="btn active" data-f="all" onclick="setFilter('all', this)">Все</button>
+    <button class="btn" data-f="SHORT" onclick="setFilter('SHORT', this)">Только SHORT</button>
+    <button class="btn" data-f="LONG" onclick="setFilter('LONG', this)">Только LONG</button>
+    <button class="btn" data-f="short_cand" onclick="setFilter('short_cand', this)">Шорты ≥ −$4</button>
+    <button class="btn" data-f="unprotected" onclick="setFilter('unprotected', this)">Без защиты (−)</button>
+    <button class="btn" id="depModeBtn" onclick="toggleDepMode()">Депозит: Маржа $</button>
+  </div>
+
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th onclick="sortBy('orig_idx')">№ / Позиция <span id="s_orig_idx"></span></th>
+          <th onclick="sortBy('ticker')">Тикер <span id="s_ticker"></span></th>
+          <th class="num" onclick="sortBy('deposit')">Депозит <span id="s_deposit"></span></th>
+          <th class="num" onclick="sortBy('pnl')">PnL <span id="s_pnl"></span></th>
+          <th onclick="sortBy('venue')">Биржа <span id="s_venue"></span></th>
+          <th onclick="sortBy('account')">Акк <span id="s_account"></span></th>
+          <th class="center" onclick="sortBy('spas')">СПАС (+/-) <span id="s_spas"></span></th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const REPO = "dmi101/spas-board";
+let rawRows = [];
+let sortCol = "pnl";
+let sortAsc = false;
+let curFilter = "all";
+let depMode = "margin"; // 'margin' or 'notional'
+let countdown = 60;
+let lastSnapTs = 0;
+
+function b64urlToBytes(s) {
+  let b = s.replace(/-/g, '+').replace(/_/g, '/');
+  while (b.length % 4) b += '=';
+  const bin = atob(b);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+function getKeyFromUrl() {
+  const h = (location.hash || "").replace(/^#/, "").replace(/^k=/, "").trim();
+  if (h) {
+    try { localStorage.setItem("spas_board_k", h); } catch (_) {}
+    return h;
+  }
+  try { return localStorage.getItem("spas_board_k") || ""; } catch (_) { return ""; }
+}
+
+async function decryptPayload(encObj, keyStr) {
+  const keyBytes = b64urlToBytes(keyStr);
+  const iv = b64urlToBytes(encObj.iv);
+  const ct = b64urlToBytes(encObj.ct);
+  const cryptoKey = await crypto.subtle.importKey("raw", keyBytes, { name: "AES-GCM" }, false, ["decrypt"]);
+  const plainBuf = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, cryptoKey, ct);
+  return JSON.parse(new TextDecoder().decode(plainBuf));
+}
+
+async function fetchEncryptedJson() {
+  const bust = Date.now();
+  // Primary: GitHub Contents API (instant commit visibility, no 5-min CDN lag)
+  try {
+    const r = await fetch(`https://api.github.com/repos/${REPO}/contents/feed.json?ref=data&_=${bust}`, {
+      headers: { "Accept": "application/vnd.github.raw" },
+      cache: "no-store"
+    });
+    if (r.ok) return await r.json();
+  } catch (_) {}
+  // Fallback: raw.githubusercontent.com
+  const r2 = await fetch(`https://raw.githubusercontent.com/${REPO}/data/feed.json?_=${bust}`, { cache: "no-store" });
+  if (!r2.ok) throw new Error("HTTP " + r2.status);
+  return await r2.json();
+}
+
+function fmtUsd(v, signed = false) {
+  const n = Number(v || 0);
+  const sign = n > 0 ? (signed ? "+" : "") : (n < 0 ? "−" : "");
+  return sign + "$" + Math.abs(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function showError(msg) {
+  const box = document.getElementById("errBox");
+  if (!msg) { box.style.display = "none"; return; }
+  box.textContent = msg;
+  box.style.display = "block";
+}
+
+async function loadFeed(manual = false) {
+  const k = getKeyFromUrl();
+  if (!k) {
+    showError("Ключ доступа не указан в ссылке (#...). Открой полную ссылку с ключом один раз — он сохранится в браузере.");
+    return;
+  }
+  try {
+    const enc = await fetchEncryptedJson();
+    const data = await decryptPayload(enc, k);
+    showError("");
+    rawRows = (data.rows || []).map((r, idx) => ({ ...r, orig_idx: idx + 1 }));
+    lastSnapTs = data.ts || 0;
+    countdown = 60;
+    updateMeta();
+    renderTable();
+  } catch (e) {
+    showError("Ошибка обновления/расшифровки: " + (e.message || e));
+  }
+}
+
+function updateMeta() {
+  if (!lastSnapTs) return;
+  const ageSec = Math.max(0, Math.round(Date.now() / 1000 - lastSnapTs));
+  const d = new Date(lastSnapTs * 1000);
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  const ss = String(d.getSeconds()).padStart(2, "0");
+  document.getElementById("snapTime").textContent = `Слепок: ${hh}:${mm}:${ss} (${ageSec}с назад)`;
+  const dot = document.getElementById("liveDot");
+  if (ageSec > 180) dot.classList.add("stale"); else dot.classList.remove("stale");
+}
+
+function setFilter(f, btn) {
+  curFilter = f;
+  document.querySelectorAll(".controls .btn[data-f]").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  renderTable();
+}
+
+function toggleDepMode() {
+  depMode = depMode === "margin" ? "notional" : "margin";
+  document.getElementById("depModeBtn").textContent = depMode === "margin" ? "Депозит: Маржа $" : "Депозит: Объём $";
+  renderTable();
+}
+
+function sortBy(col) {
+  if (sortCol === col) sortAsc = !sortAsc;
+  else {
+    sortCol = col;
+    sortAsc = (col === "ticker" || col === "venue" || col === "account" || col === "orig_idx");
+  }
+  renderTable();
+}
+
+function getDepVal(r) {
+  return depMode === "margin" ? Number(r.margin_usd || 0) : Number(r.notional_usd || 0);
+}
+
+function renderTable() {
+  const q = (document.getElementById("qSearch").value || "").trim().toLowerCase();
+  let rows = rawRows.filter(r => {
+    if (curFilter === "SHORT" && r.side !== "SHORT") return false;
+    if (curFilter === "LONG" && r.side !== "LONG") return false;
+    if (curFilter === "short_cand" && !(r.side === "SHORT" && Number(r.pnl_usd) >= -4.0)) return false;
+    if (curFilter === "unprotected" && r.spas_ok) return false;
+    if (q) {
+      const hay = `${r.ticker} ${r.venue} ${r.account} ${r.side} ${r.spas_note || ""}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+
+  rows.sort((a, b) => {
+    let va, vb;
+    if (sortCol === "ticker") { va = a.ticker; vb = b.ticker; }
+    else if (sortCol === "venue") { va = a.venue; vb = b.venue; }
+    else if (sortCol === "account") { va = a.account; vb = b.account; }
+    else if (sortCol === "pnl") { va = Number(a.pnl_usd); vb = Number(b.pnl_usd); }
+    else if (sortCol === "deposit") { va = getDepVal(a); vb = getDepVal(b); }
+    else if (sortCol === "spas") { va = a.spas_ok ? 1 : 0; vb = b.spas_ok ? 1 : 0; }
+    else { va = a.orig_idx; vb = b.orig_idx; }
+    if (typeof va === "string") {
+      const c = va.localeCompare(vb);
+      return sortAsc ? c : -c;
+    }
+    return sortAsc ? (va - vb) : (vb - va);
+  });
+
+  ["orig_idx", "ticker", "deposit", "pnl", "venue", "account", "spas"].forEach(c => {
+    document.getElementById("s_" + c).textContent = sortCol === c ? (sortAsc ? "▲" : "▼") : "";
+  });
+
+  let sumMar = 0, sumNot = 0, sumPnl = 0, nL = 0, nS = 0, nOk = 0, nBad = 0;
+  rows.forEach(r => {
+    sumMar += Number(r.margin_usd || 0);
+    sumNot += Number(r.notional_usd || 0);
+    sumPnl += Number(r.pnl_usd || 0);
+    if (r.side === "LONG") nL++; else nS++;
+    if (r.spas_ok) nOk++; else nBad++;
+  });
+
+  document.getElementById("cTotal").textContent = `${rows.length}`;
+  document.getElementById("cLS").innerHTML = `<span class="pos">${nL} L</span> / <span class="neg">${nS} S</span>`;
+  document.getElementById("cDep").innerHTML = `${fmtUsd(sumMar)} <span style="color:var(--muted);font-size:12px">/ ${fmtUsd(sumNot)}</span>`;
+  document.getElementById("cPnl").innerHTML = `<span class="${sumPnl >= 0 ? 'pos' : 'neg'}">${fmtUsd(sumPnl, true)}</span>`;
+  document.getElementById("cSpas").innerHTML = `<span class="pos">+${nOk}</span> / <span class="${nBad > 0 ? 'neg' : ''}">−${nBad}</span>`;
+
+  const html = rows.map((r, idx) => {
+    const sideBadge = r.side === "LONG"
+      ? `<span class="badge b-long">LONG</span>`
+      : `<span class="badge b-short">SHORT</span>`;
+    const pairBadge = r.paired ? `<span class="badge b-pair">2 ноги</span>` : "";
+    const mainVal = depMode === "margin" ? fmtUsd(r.margin_usd) : fmtUsd(r.notional_usd);
+    const subVal = depMode === "margin" ? `объём ${fmtUsd(r.notional_usd)}` : `маржа ${fmtUsd(r.margin_usd)}`;
+    const pnlCls = Number(r.pnl_usd) >= 0 ? "pos" : "neg";
+    const spasHtml = r.spas_ok
+      ? `<span class="spas-plus" title="${(r.spas_note || '').replace(/"/g, '&quot;')}">+</span><span class="sub">${r.spas_role || ""}</span>`
+      : `<span class="spas-minus" title="${(r.spas_note || '').replace(/"/g, '&quot;')}">−</span><span class="sub" style="color:var(--red)">${r.spas_note || "нет защиты"}</span>`;
+    return `<tr>
+      <td><strong>${idx + 1}</strong> &nbsp;${sideBadge}${pairBadge}</td>
+      <td><strong>${r.ticker}</strong><span class="sub">qty ${r.qty} · mark ${r.mark || "—"}</span></td>
+      <td class="num"><strong>${mainVal}</strong><span class="sub">${subVal}</span></td>
+      <td class="num"><span class="${pnlCls}">${fmtUsd(r.pnl_usd, true)}</span></td>
+      <td>${r.venue}</td>
+      <td><strong>${r.account}</strong></td>
+      <td class="center">${spasHtml}</td>
+    </tr>`;
+  }).join("");
+  document.getElementById("tbody").innerHTML = html;
+}
+
+setInterval(() => {
+  countdown--;
+  if (countdown <= 0) {
+    countdown = 60;
+    loadFeed(false);
+  }
+  document.getElementById("nextRefresh").textContent = `Автообновление: ${countdown}с`;
+  updateMeta();
+}, 1000);
+
+window.addEventListener("hashchange", () => loadFeed(true));
+loadFeed(false);
+</script>
+</body>
+</html>
